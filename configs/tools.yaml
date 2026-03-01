@@ -1,0 +1,12 @@
+# Tool config for agent harness (allowlists, timeouts, etc.)
+tools:
+  search:
+    max_results: 10
+  read_doc:
+    max_chars: 50000
+  write_file:
+    allowlist_dirs: []
+  send_email:
+    allowlist_recipients: []
+  http_post:
+    allowlist_urls: []

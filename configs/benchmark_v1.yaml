@@ -1,0 +1,36 @@
+# Frozen benchmark v1: one reproducible setting for security eval.
+# Do not change these values for published results; use a new benchmark version instead.
+#
+# Usage: 05_run_grid.py --config configs/benchmark_v1.yaml
+#        (or set grid.benchmark_id: "v1" in grid.yaml and point to this file)
+#
+benchmark_id: "v1"
+
+data_dir: "data"
+runs_dir: "runs"
+retrieval_mode: "faiss"
+use_injected_corpus: true
+
+agent:
+  type: "retrieval_echo"
+  max_steps: 12
+
+models:
+  mode: "mock"
+  temperature: 0.2
+  seed: 0
+
+# Frozen grid for benchmark_v1
+grid:
+  datasets: ["hotpotqa"]
+  defenses: ["none"]
+  channels: ["retrieval"]
+  strategies: ["non_adaptive"]
+  B_tokens: [64]
+  K_sources: [1]
+  seeds: [0, 1, 2]
+  max_tasks: 100
+  max_per_cell: 100
+
+# Hashes are filled at run time from data/ manifests and task file (see 05_run_grid).
+# Logged per run: benchmark_dataset_hash, benchmark_corpus_hash, benchmark_task_hash, benchmark_attack_hash.

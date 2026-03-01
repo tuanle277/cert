@@ -1,0 +1,7 @@
+defenses:
+  - name: "none"
+  - name: "quote_only"
+  - name: "provenance_tags"
+  - name: "allowlist"
+  - name: "quote+prov+allowlist"
+  - name: "certificate_gating"

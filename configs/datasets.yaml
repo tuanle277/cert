@@ -1,0 +1,15 @@
+data_dir: "data"
+datasets:
+  - name: "hotpotqa"
+    hf_id: "hotpot_qa"
+    subset: "distractor"
+    split: "train"
+    max_examples: 2000
+
+corpus:
+  chunk_tokens: 450
+  chunk_overlap: 60
+  embed_model: "sentence-transformers/all-MiniLM-L6-v2"
+  index_type: "faiss_flatip"
+  # distractor: search returns fixed context_paragraphs for task (HotpotQA canonical). faiss: query index.
+  retrieval_mode: "faiss"

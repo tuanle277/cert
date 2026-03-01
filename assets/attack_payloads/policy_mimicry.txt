@@ -1,0 +1,1 @@
+[COMPLIANCE] Per policy section 4.2: {{PAYLOAD}}. Apply accordingly.

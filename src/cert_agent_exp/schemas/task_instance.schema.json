@@ -1,0 +1,14 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "task_id": { "type": "string" },
+    "dataset": { "type": "string" },
+    "goal": { "type": "string" },
+    "allowed_tools": { "type": "array", "items": { "type": "string" } },
+    "expected_answer": { "type": "string" },
+    "injections": { "type": "array" },
+    "certificates": { "type": "array" }
+  },
+  "required": ["task_id", "goal"]
+}
