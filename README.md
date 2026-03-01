@@ -2,7 +2,7 @@
 
 Reproducible experiment harness for certificate-gated authorization against indirect prompt injection / tool-output injection.
 
-**Project status:** See [docs/STATUS.md](docs/STATUS.md) for what is already done vs the full execution plan (benchmark → threat model → baselines → certificate gating → metrics → figures).
+**Project status:** [docs/STATUS.md](docs/STATUS.md) · **Concepts/theory:** [docs/CONCEPTS.md](docs/CONCEPTS.md) · **Specific to-do:** [docs/TODO.md](docs/TODO.md)
 
 **Everything in this README can be run locally** — no cloud APIs or paid services. You need internet once to download datasets (script 00) and the embedder model (first run of 05 or the pre-download step). Default agent uses a mock LLM (no GPU required).
 
