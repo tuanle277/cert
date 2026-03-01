@@ -4,6 +4,10 @@ Reproducible experiment harness for certificate-gated authorization against indi
 
 **Project status:** See [docs/STATUS.md](docs/STATUS.md) for what is already done vs the full execution plan (benchmark → threat model → baselines → certificate gating → metrics → figures).
 
+**Everything in this README can be run locally** — no cloud APIs or paid services. You need internet once to download datasets (script 00) and the embedder model (first run of 05 or the pre-download step). Default agent uses a mock LLM (no GPU required).
+
+**Why Docker?** Optional. Use it when you want one reproducible environment (e.g. no Python on the host, matching a paper/CI, or avoiding “works on my machine”). Same scripts run inside the container; you don’t need Docker to run the project.
+
 ---
 
 ## How to run everything
@@ -52,6 +56,13 @@ python scripts/06_compute_metrics.py --config configs/grid.yaml
 ```bash
 python scripts/05_run_grid.py --config configs/benchmark_v1.yaml          # up to 100 tasks × 3 seeds
 python scripts/06_compute_metrics.py --config configs/benchmark_v1.yaml    # → runs/metrics/baseline.json (R_bad, task_success, exposure_rate)
+```
+
+**Optional: Docker** (same pipeline in a container; useful if you want a reproducible env or don’t have Python on the host):
+```bash
+docker build -t cert-agent-exp -f docker/Dockerfile .
+docker run --rm -it -v "$PWD/data:/workspace/data" -v "$PWD/runs:/workspace/runs" cert-agent-exp bash
+# inside: run the Full pipeline script commands from /workspace (no make needed)
 ```
 
 ---
