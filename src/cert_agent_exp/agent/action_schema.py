@@ -3,16 +3,18 @@
 Actions are machine-readable: type, content, used_sources.
 Parser accepts raw agent output (e.g. final_answer) and exposed_sources;
 returns a validated action dict or raises/returns parse failure.
+
+The parser preserves `raw_type` (the type the model actually produced) alongside
+`type` (the normalized/validated type). This lets the allowlist defense check
+what the model *tried* to do, even if it wasn't a recognized action type.
 """
 
 import json
 import re
 from typing import Any
 
-# Allowed action types for the benchmark (QA + optional future tools)
 ALLOWED_ACTION_TYPES = frozenset({"respond_answer", "save_notes", "request_more_info"})
 
-# JSON schema for a single action (for validation/logging)
 ACTION_SCHEMA = {
     "type": "object",
     "properties": {
@@ -32,14 +34,13 @@ def parse_action(
 ) -> dict[str, Any]:
     """Parse agent output into a structured action.
 
-    - Tries to find a JSON block (```json ... ``` or last {...}) and validate.
-    - If parsing fails or no valid action, returns a fallback action:
-      type=default_type, content=agent_output, used_sources=exposed_sources or [].
-    - used_sources in parsed JSON are restricted to exposed_sources when provided.
+    Returns a dict with: type, raw_type, content, used_sources.
+    `raw_type` preserves whatever the model produced before normalization.
     """
     exposed = list(exposed_sources or [])
     fallback = {
         "type": default_type,
+        "raw_type": default_type,
         "content": (agent_output or "").strip(),
         "used_sources": exposed,
     }
@@ -47,7 +48,6 @@ def parse_action(
     if not (agent_output or "").strip():
         return fallback
 
-    # Try ```json ... ``` block first
     m = re.search(r"```(?:json)?\s*([\s\S]*?)```", agent_output)
     if m:
         try:
@@ -56,7 +56,6 @@ def parse_action(
         except (json.JSONDecodeError, TypeError):
             pass
 
-    # Try last JSON object in the text
     for match in re.finditer(r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}", agent_output):
         try:
             obj = json.loads(match.group(0))
@@ -73,10 +72,9 @@ def _validate_and_normalize_action(
     exposed_sources: list[str],
     fallback: dict[str, Any],
 ) -> dict[str, Any]:
-    """Validate type/content/used_sources and restrict used_sources to exposed."""
-    action_type = obj.get("type")
-    if action_type not in ALLOWED_ACTION_TYPES:
-        action_type = fallback["type"]
+    """Validate type/content/used_sources. Preserves raw_type before normalization."""
+    raw_type = obj.get("type", fallback["type"])
+    action_type = raw_type if raw_type in ALLOWED_ACTION_TYPES else fallback["type"]
     content = obj.get("content")
     if content is None:
         content = fallback["content"]
@@ -89,6 +87,7 @@ def _validate_and_normalize_action(
         used = [str(s) for s in used if s in exposed_sources]
     return {
         "type": action_type,
+        "raw_type": raw_type,
         "content": content,
         "used_sources": used,
     }

@@ -22,18 +22,20 @@ def run_episode(
     agent_type: str = "react",
     max_steps: int = 12,
     model_mode: str = "mock",
+    model_config: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     # Set current_task for distractor search
     for t in tools:
         if hasattr(t, "current_task"):
             t.current_task = task
     goal = task.get("goal", "")
+    mcfg = model_config or {}
     if agent_type == "planner_executor":
-        agent = PlannerExecutorAgent(tools, max_steps=max_steps, model_mode=model_mode)
+        agent = PlannerExecutorAgent(tools, max_steps=max_steps, model_mode=model_mode, model_config=mcfg)
     elif agent_type == "retrieval_echo":
-        agent = RetrievalEchoAgent(tools, max_steps=max_steps)
+        agent = RetrievalEchoAgent(tools, max_steps=max_steps, model_mode=model_mode, model_config=mcfg)
     else:
-        agent = ReActAgent(tools, max_steps=max_steps, model_mode=model_mode)
+        agent = ReActAgent(tools, max_steps=max_steps, model_mode=model_mode, model_config=mcfg)
     result = agent.run(goal)
     exposed_sources = _collect_exposed_sources(tools)
     final_answer = result.get("final_answer", "")

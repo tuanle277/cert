@@ -11,3 +11,7 @@ sentence-transformers>=3.0
 faiss-cpu>=1.8.0
 datasets>=2.19
 pytest>=8.0
+# Optional for models.mode=api (OpenAI-compatible):
+openai>=1.0
+# Optional for models.mode=gemini:
+google-genai>=1.0

@@ -1,8 +1,13 @@
 from .metrics import (
     aggregate_success_rate,
     episode_success,
+    grade_task_success,
     is_bad_action,
+    is_bad_outcome,
     r_bad,
+    r_bad_outcome,
+    r_forge,
+    delta_auth,
     exposure_rate,
 )
 from .bootstrap import bootstrap
@@ -12,13 +17,19 @@ from .plots import (
     plot_pipeline_schematic,
     plot_performance_by_defense,
     plot_exposure_and_injection,
+    plot_security_by_defense,
 )
 
 __all__ = [
     "aggregate_success_rate",
     "episode_success",
+    "grade_task_success",
     "is_bad_action",
+    "is_bad_outcome",
     "r_bad",
+    "r_bad_outcome",
+    "r_forge",
+    "delta_auth",
     "exposure_rate",
     "bootstrap",
     "plot_frontiers",
@@ -26,4 +37,5 @@ __all__ = [
     "plot_pipeline_schematic",
     "plot_performance_by_defense",
     "plot_exposure_and_injection",
+    "plot_security_by_defense",
 ]

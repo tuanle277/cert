@@ -65,6 +65,7 @@ def main() -> None:
     manifest = {
         "seed": args.seed,
         "payload_dir": payload_dir,
+        "raw_payload": payload,
         "budgets_used": B_list,
         "strategies": strategies,
         "placements": placement_list,

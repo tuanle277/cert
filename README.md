@@ -59,11 +59,47 @@ python scripts/06_compute_metrics.py --config configs/benchmark_v1.yaml    # →
 ```
 
 **Optional: Docker** (same pipeline in a container; useful if you want a reproducible env or don’t have Python on the host):
+
 ```bash
 docker build -t cert-agent-exp -f docker/Dockerfile .
 docker run --rm -it -v "$PWD/data:/workspace/data" -v "$PWD/runs:/workspace/runs" cert-agent-exp bash
 # inside: run the Full pipeline script commands from /workspace (no make needed)
 ```
+
+### Using other models
+
+The default is **mock** (no LLM call). You can use a real model by setting `models.mode` and optional `models.model_name` in your config (e.g. **configs/grid.yaml**).
+
+- **`mode: "api"`** — OpenAI-compatible chat API.  
+  - Set `OPENAI_API_KEY` in the environment.  
+  - Optional: `OPENAI_BASE_URL` and `OPENAI_MODEL`; or in config: `models.model_name` (e.g. `gpt-4o-mini`), `models.api_base`.  
+  - Requires: `pip install openai` (included in requirements.txt).
+
+- **`mode: "ollama"`** (or **`oss_llm`**) — Local [Ollama](https://ollama.ai).  
+  - Run Ollama and pull a model (e.g. `ollama pull llama3.2`).  
+  - Optional: `OLLAMA_HOST` (default `http://localhost:11434`), `OLLAMA_MODEL`; or in config: `models.model_name`.
+
+Example **configs/grid.yaml** for API:
+
+```yaml
+models:
+  mode: "api"
+  model_name: "gpt-4o-mini"
+  temperature: 0.2
+  seed: 0
+```
+
+Example for Ollama:
+
+```yaml
+models:
+  mode: "ollama"
+  model_name: "llama3.2"
+  temperature: 0.2
+  seed: 0
+```
+
+Use **`agent.type: "retrieval_echo"`** so the agent sends retrieved (possibly poisoned) content to the model; with **`react`** the model only sees the goal text.
 
 ---
 
@@ -82,6 +118,9 @@ python scripts/03_inject_corpus.py --config configs/attacks.yaml
 python scripts/05_run_grid.py --config configs/grid.yaml
 python scripts/06_compute_metrics.py --config configs/grid.yaml
 python scripts/07_plot_frontiers.py --config configs/grid.yaml
+python scripts/08_plot_figures.py --config configs/grid.yaml
+python scripts/10_plot_attack_example.py --config configs/grid.yaml
+
 ```
 
 **Artifacts:**
