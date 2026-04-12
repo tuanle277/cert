@@ -12,7 +12,7 @@ agent:
   max_steps: 12
 
 models:
-  mode: "ollama"   # "mock", "gemini", "api", or "ollama"
+  mode: "mock"     # "mock", "gemini", "api", or "ollama"
   model_name: "llama3.2:3b"
   temperature: 0.2
   seed: 0
@@ -21,7 +21,13 @@ grid:
   datasets: ["hotpotqa"]
   defenses: ["none", "quote_only", "provenance_tags", "allowlist", "quote+prov+allowlist", "certificate_gating", "taskshield", "llm_judge", "intentguard"]
   channels: ["retrieval"]
-  strategies: ["non_adaptive"]
+  strategies:
+    - non_adaptive
+    - goal_laundering
+    - evidence_laundering
+    - policy_mimicry
+    - subtle_redirect
+    - footnote_injection
   B_tokens: [50, 150, 300]
   K_sources: [1, 2]
   seeds: [0, 1, 2]

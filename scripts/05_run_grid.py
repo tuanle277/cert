@@ -384,11 +384,12 @@ def main() -> None:
                         result["action_executed"] = {"type": "blocked"}
                         result.setdefault("rejection_reason", al_reason)
 
-                    # Certificate gating with full debug
+                    # Certificate gating with full debug (n-gram + embedding)
                     cert_allowed, cert_reason, cert_debug = verify_with_debug(
                         content, certificates=[],
                         payload_ngrams=payload_ngrams,
                         config=vcfg, chunk_texts=chunk_texts,
+                        raw_payload_text=raw_payload_text,
                     )
                     result["verifier_decision"] = cert_allowed if use_cert else None
                     result["verifier_reason"] = cert_reason if use_cert else None
@@ -491,6 +492,8 @@ def main() -> None:
                         "allowlist_decision": al_allowed if use_allowlist else "n/a",
                         "allowlist_reason": al_reason if use_allowlist else None,
                         "cert_taint_ratio": round(cert_debug["taint"]["ngram_score"], 4),
+                        "cert_embed_similarity": round(cert_debug["taint"].get("embed_similarity", 0.0), 4),
+                        "cert_taint_reason": cert_debug["taint"].get("taint_reason", ""),
                         "cert_decision": cert_allowed if use_cert else "n/a",
                         "cert_reason": cert_reason if use_cert else None,
                         "taskshield_decision": ts_allowed if use_taskshield else "n/a",
@@ -543,13 +546,16 @@ def _print_sample_traces(logs: list[dict], defenses: list[str]) -> None:
               f" ({t.get('allowlist_reason', '')})" if t.get('allowlist_reason') else "")
         if vd:
             ti = vd.get("taint", {})
-            print(f"  Taint score: {ti.get('ngram_score', 0):.4f} (threshold: {ti.get('threshold', 0.02)})")
+            print(f"  Taint score: {ti.get('ngram_score', 0):.4f} (threshold: {ti.get('threshold', 0.02)})"
+                  f"  Embed sim: {ti.get('embed_similarity', 0):.4f} (threshold: {ti.get('embed_threshold', 0.86)})"
+                  f"  Reason: {ti.get('taint_reason', 'n/a')}")
             if ti.get("matched_ngrams"):
                 print(f"  Matched:     {ti['matched_ngrams'][:5]}")
             if ti.get("taint_sources"):
                 for src in ti["taint_sources"][:3]:
                     inj = "INJECTED" if src["chunk_id"] in L.get("injected_sources", []) else "clean"
-                    print(f"    chunk {src['chunk_id']}: score={src['ngram_score']:.4f} [{inj}]")
+                    print(f"    chunk {src['chunk_id']}: ngram={src['ngram_score']:.4f}"
+                          f" embed={src.get('embed_similarity', 0):.4f} [{inj}]")
         print(f"  Cert:        {t.get('cert_decision')} ({t.get('cert_reason', '')})")
         # SOTA defense traces
         if t.get("use_taskshield"):

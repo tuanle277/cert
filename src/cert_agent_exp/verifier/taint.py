@@ -1,18 +1,74 @@
-"""Taint check: n-gram overlap with known attack payloads.
+"""Taint check: n-gram overlap with known attack payloads, augmented by
+cosine similarity of sentence embeddings for paraphrase robustness.
 
 Strategy: build n-grams at multiple sizes from the payload (sizes 2..max_n).
 When checking text, compute overlap at each size and take the maximum ratio.
 This handles both short payloads ("PWNED") and long ones.
 
+The embedding augmentation computes cosine similarity between the text and
+the raw payload using sentence-transformers, catching paraphrased attacks
+that n-gram overlap alone would miss.
+
 The `taint_detail()` function produces a full diagnostic object containing
-matched n-grams, their positions, and source attribution — the internal
-proof that the verifier is blocking for the right reason.
+matched n-grams, their positions, source attribution, and embedding
+similarity — the internal proof that the verifier is blocking for the right
+reason.
 """
 
 import re
 from typing import Any
 
+import numpy as np
+
 _PUNCT_RE = re.compile(r"[^\w\s]")
+
+# ── Embedding cache (lazy-loaded) ───────────────────────────────────────────
+
+_embed_model = None
+_embed_cache: dict[str, np.ndarray] = {}
+
+
+def _get_embedder():
+    global _embed_model
+    if _embed_model is not None:
+        return _embed_model
+    try:
+        from sentence_transformers import SentenceTransformer
+        _embed_model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+    except ImportError:
+        _embed_model = None
+    return _embed_model
+
+
+def _embed_text(text: str) -> np.ndarray | None:
+    """Embed text using sentence-transformers (cached)."""
+    if not text:
+        return None
+    key = text[:500]
+    if key in _embed_cache:
+        return _embed_cache[key]
+    model = _get_embedder()
+    if model is None:
+        return None
+    vec = model.encode([text], show_progress_bar=False)[0]
+    _embed_cache[key] = vec
+    return vec
+
+
+def compute_embedding_similarity(text: str, payload_text: str) -> float:
+    """Cosine similarity between text and payload embeddings.
+
+    Returns 0.0 if sentence-transformers is not available.
+    """
+    vec_a = _embed_text(text)
+    vec_b = _embed_text(payload_text)
+    if vec_a is None or vec_b is None:
+        return 0.0
+    dot = float(np.dot(vec_a, vec_b))
+    norm = float(np.linalg.norm(vec_a) * np.linalg.norm(vec_b))
+    if norm < 1e-9:
+        return 0.0
+    return dot / norm
 
 
 def _normalize_word(w: str) -> str:
@@ -70,13 +126,18 @@ def taint_detail(
     payload_ngrams: set[tuple[str, ...]],
     ngram_threshold: float = 0.02,
     chunk_texts: dict[str, str] | None = None,
+    raw_payload_text: str = "",
+    embed_threshold: float = 0.86,
+    use_embeddings: bool = True,
 ) -> dict[str, Any]:
     """Produce a full taint diagnostic object.
 
     Returns a dict with:
       tainted: bool
       ngram_score: float
+      embed_similarity: float              — cosine similarity with payload embedding
       threshold: float
+      embed_threshold: float
       matched_ngrams: list[str]           — human-readable matched n-grams
       matched_positions: list[int]         — word-offset positions in text
       tainted_spans: list[str]             — exact substrings of text that overlapped
@@ -104,7 +165,15 @@ def taint_detail(
             best_ratio = ratio
             best_n = n
 
-    tainted = best_ratio >= ngram_threshold
+    ngram_tainted = best_ratio >= ngram_threshold
+
+    embed_sim = 0.0
+    embed_tainted = False
+    if use_embeddings and raw_payload_text:
+        embed_sim = compute_embedding_similarity(text, raw_payload_text)
+        embed_tainted = embed_sim >= embed_threshold
+
+    tainted = ngram_tainted or embed_tainted
 
     matched_ngrams = sorted({" ".join(ng) for _, _, ng in all_matched})
 
@@ -122,19 +191,35 @@ def taint_detail(
     if chunk_texts:
         for cid, ctext in chunk_texts.items():
             score = ngram_overlap_ratio(ctext, payload_ngrams)
-            if score > 0:
+            chunk_embed_sim = 0.0
+            if use_embeddings and raw_payload_text:
+                chunk_embed_sim = compute_embedding_similarity(ctext, raw_payload_text)
+            is_taint = score >= ngram_threshold or chunk_embed_sim >= embed_threshold
+            if score > 0 or chunk_embed_sim > 0.5:
                 taint_sources.append({
                     "chunk_id": cid,
                     "ngram_score": round(score, 4),
-                    "is_tainted": score >= ngram_threshold,
+                    "embed_similarity": round(chunk_embed_sim, 4),
+                    "is_tainted": is_taint,
                 })
         taint_sources.sort(key=lambda x: x["ngram_score"], reverse=True)
 
+    taint_reason = "clean"
+    if ngram_tainted and embed_tainted:
+        taint_reason = "ngram+embedding"
+    elif ngram_tainted:
+        taint_reason = "ngram_overlap"
+    elif embed_tainted:
+        taint_reason = "embedding_similarity"
+
     return {
         "tainted": tainted,
+        "taint_reason": taint_reason,
         "ngram_score": round(best_ratio, 6),
+        "embed_similarity": round(embed_sim, 6),
         "best_ngram_size": best_n,
         "threshold": ngram_threshold,
+        "embed_threshold": embed_threshold,
         "num_matched_ngrams": len(all_matched),
         "matched_ngrams": matched_ngrams[:15],
         "matched_positions": matched_positions[:20],
@@ -149,11 +234,17 @@ def is_tainted(
     ngram_threshold: float = 0.02,
     embed_sim: float = 0.0,
     embed_threshold: float = 0.86,
+    raw_payload_text: str = "",
+    use_embeddings: bool = True,
 ) -> bool:
-    """True if text is tainted by the known payload."""
+    """True if text is tainted by the known payload (n-gram OR embedding)."""
     ratio = ngram_overlap_ratio(text, payload_ngrams)
     if ratio >= ngram_threshold:
         return True
     if embed_sim >= embed_threshold:
         return True
+    if use_embeddings and raw_payload_text and embed_sim == 0.0:
+        computed_sim = compute_embedding_similarity(text, raw_payload_text)
+        if computed_sim >= embed_threshold:
+            return True
     return False

@@ -1,0 +1,29 @@
+# Secondary experiment: planner-executor agent architecture
+# Tests whether the two-phase architecture changes the attack surface
+data_dir: "data"
+runs_dir: "runs"
+retrieval_mode: "faiss"
+use_injected_corpus: true
+
+agent:
+  type: "planner_executor"
+  max_steps: 12
+
+models:
+  mode: "mock"
+  model_name: "llama3.2:3b"
+  temperature: 0.2
+  seed: 0
+
+grid:
+  datasets: ["hotpotqa"]
+  defenses: ["none", "allowlist", "certificate_gating", "taskshield", "intentguard"]
+  channels: ["retrieval"]
+  strategies:
+    - non_adaptive
+    - goal_laundering
+    - policy_mimicry
+  B_tokens: [50, 150]
+  K_sources: [1]
+  seeds: [0, 1, 2]
+  max_per_cell: 5

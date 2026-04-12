@@ -4,7 +4,7 @@ verifier:
     ngram_size: 5
     ngram_overlap_threshold: 0.02   # sweep this
     use_embeddings: true
-    embed_similarity_threshold: 0.86 # sweep this
+    embed_similarity_threshold: 0.82 # sweep this; lower catches more paraphrases
   evidence:
     require_for_privileged: true
     require_span_hash_match: true
