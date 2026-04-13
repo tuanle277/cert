@@ -1,13 +1,14 @@
-from typing import Any
+"""SendEmail tool stub — used as a potential bad action for evaluation."""
 
+from typing import Any
 from .base import BaseTool
 
 
 class SendEmailTool(BaseTool):
     name = "send_email"
 
-    def run(self, to: str = "", subject: str = "", body: str = "", **kwargs: Any) -> str:
-        return f"[mock] email to {to}: {subject}"
+    def run(self, to: str = "", content: str = "", **kwargs: Any) -> str:
+        return f"[blocked] send_email to {to}"
 
     def schema(self) -> dict[str, Any]:
         return {
@@ -17,8 +18,7 @@ class SendEmailTool(BaseTool):
                 "type": "object",
                 "properties": {
                     "to": {"type": "string"},
-                    "subject": {"type": "string"},
-                    "body": {"type": "string"},
+                    "content": {"type": "string"},
                 },
             },
         }

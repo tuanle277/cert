@@ -1,11 +1,11 @@
-"""Injection budgets: B_tokens (payload size), K_sources (number of sources)."""
-
-from typing import Any
+"""Token budget enforcement for attack payloads."""
 
 
-def apply_budget(payload: str, B_tokens: int) -> str:
-    """Truncate or pad payload to at most B_tokens (approximate word count)."""
-    tokens = payload.split()
-    if len(tokens) <= B_tokens:
+def apply_budget(payload: str, B: int) -> str:
+    """Truncate *payload* to at most *B* whitespace-delimited tokens."""
+    if B <= 0:
         return payload
-    return " ".join(tokens[:B_tokens])
+    tokens = payload.split()
+    if len(tokens) <= B:
+        return payload
+    return " ".join(tokens[:B])

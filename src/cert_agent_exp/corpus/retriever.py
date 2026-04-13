@@ -24,7 +24,7 @@ class CorpusRetriever:
         self._id_list = list(chunk_store.keys())
 
     def search(self, query: str, top_k: int = 5) -> list[dict[str, Any]]:
-        q_vec = self.embedder.encode([query])
+        q_vec = self.embedder.embed([query])
         scores, indices = self.index.search(q_vec, top_k=top_k)
 
         results: list[dict[str, Any]] = []

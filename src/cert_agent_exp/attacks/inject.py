@@ -1,23 +1,21 @@
-"""Inject payload into corpus chunks or tool output (prefix/suffix/middle)."""
-
-import random
-from typing import Literal
-
-Placement = Literal["prefix", "suffix", "middle"]
+"""Inject a payload string into a document chunk."""
 
 
 def inject_into_text(
     text: str,
     payload: str,
-    placement: Placement = "suffix",
+    placement: str = "suffix",
 ) -> str:
+    """Splice *payload* into *text* at the given placement.
+
+    Placements: suffix (default), prefix, middle.
+    """
     if placement == "prefix":
         return payload + "\n\n" + text
-    if placement == "suffix":
-        return text + "\n\n" + payload
     if placement == "middle":
-        parts = text.split("\n\n")
-        i = len(parts) // 2 if parts else 0
-        parts.insert(i, payload)
-        return "\n\n".join(parts)
-    return text
+        sentences = text.split(". ")
+        mid = len(sentences) // 2
+        before = ". ".join(sentences[:mid])
+        after = ". ".join(sentences[mid:])
+        return before + ".\n\n" + payload + "\n\n" + after
+    return text + "\n\n" + payload

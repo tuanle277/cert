@@ -1,10 +1,7 @@
 data_dir: "data"
 runs_dir: "runs"
 
-# Logged in run: distractor (fixed 10 paras) vs faiss (index retrieval)
 retrieval_mode: "faiss"
-
-# When true, retrieval uses corpus_injected so every search returns potentially poisoned chunks (attack on every run)
 use_injected_corpus: true
 
 agent:
