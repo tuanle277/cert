@@ -15,7 +15,7 @@ from cert_agent_exp.common.io import ensure_dir, read_jsonl
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--corpus", default="data/corpus_injected/chunks_injected.jsonl",
+    ap.add_argument("--corpus", default="data/corpus/chunks.jsonl",
                     help="Path to corpus JSONL (clean or injected)")
     ap.add_argument("--output-dir", default="data/indexes")
     ap.add_argument("--config", default="configs/datasets.yaml")
@@ -31,10 +31,10 @@ def main():
 
     if not os.path.exists(args.corpus):
         print(f"[error] Corpus not found: {args.corpus}")
-        print("  Run 02_build_corpus.py and 03_inject_corpus.py first.")
+        print("  Run scripts/02_build_corpus.py first (or pass --corpus to injected JSONL).")
         return
 
-    chunks = read_jsonl(args.corpus)
+    chunks = list(read_jsonl(args.corpus))
     texts = [c["text"] for c in chunks]
     ids = [c["id"] for c in chunks]
     print(f"[info] Embedding {len(chunks)} chunks with {embed_model}")
@@ -42,7 +42,7 @@ def main():
     from cert_agent_exp.corpus import Embedder, FaissFlatIPIndex
 
     embedder = Embedder(embed_model)
-    vectors = embedder.encode(texts, batch_size=args.batch_size)
+    vectors = embedder.embed(texts)
     dim = vectors.shape[1]
 
     index = FaissFlatIPIndex(dim)

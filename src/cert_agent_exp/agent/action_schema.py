@@ -34,7 +34,8 @@ def parse_action(
 ) -> dict[str, Any]:
     """Parse agent output into a structured action.
 
-    Returns a dict with: type, raw_type, content, used_sources.
+    Returns a dict with: type, raw_type, content, used_sources;
+    optional **certificate** `{goal, evidence, constraints}` when present in JSON.
     `raw_type` preserves whatever the model produced before normalization.
     """
     exposed = list(exposed_sources or [])
@@ -67,6 +68,28 @@ def parse_action(
     return fallback
 
 
+def _normalize_certificate(obj: dict[str, Any]) -> dict[str, Any] | None:
+    """Extract optional φ = (goal, evidence, constraints) from parsed JSON."""
+    cert = obj.get("certificate")
+    if not isinstance(cert, dict):
+        return None
+    goal = cert.get("goal", "")
+    goal = str(goal).strip() if goal is not None else ""
+    ev_raw = cert.get("evidence", [])
+    evidence: list[str] = []
+    if isinstance(ev_raw, list):
+        evidence = [str(e).strip() for e in ev_raw if e is not None]
+    c_raw = cert.get("constraints", [])
+    constraints: list[str] = []
+    if isinstance(c_raw, list):
+        constraints = [str(c).strip() for c in c_raw if c is not None]
+    elif isinstance(c_raw, str) and c_raw.strip():
+        constraints = [c_raw.strip()]
+    if not goal and not evidence and not constraints:
+        return None
+    return {"goal": goal, "evidence": evidence, "constraints": constraints}
+
+
 def _validate_and_normalize_action(
     obj: dict[str, Any],
     exposed_sources: list[str],
@@ -85,9 +108,13 @@ def _validate_and_normalize_action(
         used = fallback["used_sources"]
     else:
         used = [str(s) for s in used if s in exposed_sources]
-    return {
+    out: dict[str, Any] = {
         "type": action_type,
         "raw_type": raw_type,
         "content": content,
         "used_sources": used,
     }
+    cert = _normalize_certificate(obj)
+    if cert is not None:
+        out["certificate"] = cert
+    return out

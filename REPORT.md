@@ -2,6 +2,8 @@
 
 ## Complete Experimental Report
 
+> **Note:** Numbers and script names in this narrative are tied to a specific experimental run. For the **current** pipeline and commands, use [`README.md`](README.md) and [`docs/STATUS.md`](docs/STATUS.md). Proposal vs implementation gaps: [`docs/PROPOSAL_GAP.md`](docs/PROPOSAL_GAP.md).
+
 ---
 
 ## 1. Introduction

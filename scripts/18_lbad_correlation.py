@@ -26,7 +26,7 @@ import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from cert_agent_exp.common.io import read_jsonl, ensure_dir
-from cert_agent_exp.eval.metrics import is_bad_action, is_bad_outcome
+from cert_agent_exp.eval.metrics import is_bad_action, is_bad_outcome, r_forge
 
 FIGURES_DIR = os.path.join("runs", "figures")
 LOGS_PATH = os.path.join("runs", "logs", "grid_run.jsonl")
@@ -86,6 +86,17 @@ def compute_delta_lbad(records: list[dict]) -> dict:
             "n": d["total"],
         }
     return results
+
+
+def compute_r_forge_by_defense(logs: list[dict]) -> dict[str, float]:
+    """R_forge (verifier FNR on bad actions) per defense, for cert / analysis."""
+    by_def: dict[str, list[dict]] = defaultdict(list)
+    for L in logs:
+        by_def[L.get("defense", "")].append(L)
+    out: dict[str, float] = {}
+    for defense, subset in by_def.items():
+        out[defense] = round(float(r_forge(subset)), 4)
+    return out
 
 
 def fig_lbad_distribution(records: list[dict]) -> None:
@@ -168,21 +179,39 @@ def main():
 
     records = compute_lbad_proxy(logs)
     delta_results = compute_delta_lbad(records)
+    r_forge_by_def = compute_r_forge_by_defense(logs)
+    for defense in delta_results:
+        delta_results[defense]["R_forge"] = r_forge_by_def.get(defense, 0.0)
 
-    print(f"\n  {'Defense':<28s} {'ΔL_bad':>8s} {'ASR':>8s} {'n':>5s}")
-    print("  " + "-" * 55)
+    print(f"\n  {'Defense':<28s} {'ΔL_bad':>8s} {'ASR':>8s} {'R_forge':>8s} {'n':>5s}")
+    print("  " + "-" * 65)
     for defense in sorted(delta_results.keys()):
         d = delta_results[defense]
-        print(f"  {defense:<28s} {d['delta_lbad']:>8.4f} {d['asr']:>8.3f} {d['n']:>5d}")
+        print(
+            f"  {defense:<28s} {d['delta_lbad']:>8.4f} {d['asr']:>8.3f} "
+            f"{d.get('R_forge', 0.0):>8.3f} {d['n']:>5d}"
+        )
+
+    def _safe_corr(xs: list[float], ys: list[float]) -> float:
+        if len(xs) < 2:
+            return 0.0
+        c = np.corrcoef(xs, ys)[0, 1]
+        return float(c) if np.isfinite(c) else 0.0
 
     all_deltas = [delta_results[d]["delta_lbad"] for d in delta_results]
     all_asrs = [delta_results[d]["asr"] for d in delta_results]
-    corr = np.corrcoef(all_deltas, all_asrs)[0, 1] if len(all_deltas) > 1 else 0.0
+    corr = _safe_corr(all_deltas, all_asrs)
     print(f"\n  Pearson r(ΔL_bad, ASR) = {corr:.4f}")
+
+    rf_vals = [delta_results[d].get("R_forge", 0.0) for d in delta_results]
+    corr_rf = _safe_corr(all_deltas, rf_vals)
+    print(f"  Pearson r(ΔL_bad, R_forge) = {corr_rf:.4f}")
 
     output = {
         "description": "L_bad proxy analysis: taint score as surrogate for Σ p_θ(τ|o) over bad actions",
         "correlation": round(float(corr), 4),
+        "correlation_delta_lbad_asr": round(float(corr), 4),
+        "correlation_delta_lbad_r_forge": round(float(corr_rf), 4),
         "by_defense": delta_results,
         "n_episodes": len(records),
     }

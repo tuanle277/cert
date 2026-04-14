@@ -4,7 +4,7 @@ from typing import Any
 
 from .react_agent import ReActAgent
 from cert_agent_exp.models import generate
-from .prompts import SYSTEM_PROMPT
+from .prompts import CERTIFICATE_JSON_SUFFIX, SYSTEM_PROMPT
 
 
 class RetrievalEchoAgent(ReActAgent):
@@ -29,7 +29,12 @@ class RetrievalEchoAgent(ReActAgent):
             else:
                 final = f"Based on retrieval (start): {out[:300]} ... [ ... ] ... (end): {out[-400:]}"
         else:
-            prompt = f"Goal: {goal}\n\nRetrieved content:\n{out}\n\nProvide your final answer based only on the goal and the retrieved content above."
+            prompt = (
+                f"Goal: {goal}\n\nRetrieved content:\n{out}\n\n"
+                "Provide your final answer based only on the goal and the retrieved content above."
+            )
+            if self.model_config.get("emit_certificate_json"):
+                prompt += CERTIFICATE_JSON_SUFFIX
             final = generate(
                 prompt,
                 mode=self.model_mode,

@@ -8,6 +8,7 @@
 
 set -euo pipefail
 cd "$(dirname "$0")/.."
+export PYTHONPATH="${PWD}/src:${PYTHONPATH:-}"
 
 LIGHT=""
 FALLBACK=""
@@ -31,57 +32,60 @@ echo "--- Step 2: Build corpus ---"
 python scripts/02_build_corpus.py
 
 echo ""
-echo "--- Step 3: Inject corpus ---"
-python scripts/03_inject_corpus.py --config configs/attacks.yaml
+echo "--- Step 3: (Optional) Legacy on-disk inject: python scripts/03_inject_corpus.py ---"
+echo "  Skipped — retrieval-time injection uses SearchTool + strategy payloads."
 
 echo ""
-echo "--- Step 4: Build index (skipped in mock mode) ---"
-echo "  (Run manually with: python scripts/04_build_index.py)"
-echo "  Requires: pip install faiss-cpu sentence-transformers"
+echo "--- Step 4: Build FAISS index ---"
+PYTHONPATH=src python scripts/04_build_index.py --config configs/datasets.yaml --corpus data/corpus/chunks.jsonl
 
 echo ""
 echo "--- Step 5: Run grid ---"
-python scripts/05_run_grid.py --config configs/grid.yaml $LIGHT
+PYTHONPATH=src python scripts/05_run_grid.py --config configs/grid.yaml $LIGHT
 
 echo ""
 echo "--- Step 6: Compute metrics ---"
-python scripts/06_compute_metrics.py --config configs/grid.yaml
+PYTHONPATH=src python scripts/06_compute_metrics.py --config configs/grid.yaml
 
 echo ""
-echo "--- Step 7: Generate figures ---"
-python scripts/11_generate_paper_figures.py
+echo "--- Step 7: Performance plots (bootstrap ASR, exposure, security) ---"
+PYTHONPATH=src python scripts/07b_plot_performance.py --config configs/grid.yaml
 
 echo ""
-echo "--- Step 8: Attack trace figure ---"
-python scripts/12_attack_trace_figure.py
+echo "--- Step 8: Paper + trace figures ---"
+PYTHONPATH=src python scripts/11_generate_paper_figures.py
 
 echo ""
-echo "--- Step 9: Attack optimization ---"
-python scripts/13_attack_optimization.py
+echo "--- Step 9: Attack trace figure ---"
+PYTHONPATH=src python scripts/12_attack_trace_figure.py
 
 echo ""
-echo "--- Step 10: Adaptive attack analysis ---"
-python scripts/14_adaptive_attack_analysis.py
+echo "--- Step 10: Attack optimization ---"
+PYTHONPATH=src python scripts/13_attack_optimization.py
 
 echo ""
-echo "--- Step 11: Attack figures ---"
-python scripts/15_attack_figures.py
+echo "--- Step 11: Adaptive attack analysis ---"
+PYTHONPATH=src python scripts/14_adaptive_attack_analysis.py
 
 echo ""
-echo "--- Step 12: Extended results ---"
-python scripts/16_extended_results.py
+echo "--- Step 12: Attack figures ---"
+PYTHONPATH=src python scripts/15_attack_figures.py
 
 echo ""
-echo "--- Step 13: Formal attack optimization (proposal-aligned) ---"
-python scripts/17_formal_attack_optimization.py
+echo "--- Step 13: Extended results ---"
+PYTHONPATH=src python scripts/16_extended_results.py
 
 echo ""
-echo "--- Step 14: L_bad / ΔL_bad correlation analysis ---"
-python scripts/18_lbad_correlation.py
+echo "--- Step 14: Formal attack optimization (proposal-aligned) ---"
+PYTHONPATH=src python scripts/17_formal_attack_optimization.py
 
 echo ""
-echo "--- Step 15: Planner-executor secondary experiment ---"
-python scripts/19_planner_executor_experiment.py
+echo "--- Step 15: L_bad / ΔL_bad correlation analysis ---"
+PYTHONPATH=src python scripts/18_lbad_correlation.py
+
+echo ""
+echo "--- Step 16: Planner-executor secondary experiment ---"
+PYTHONPATH=src python scripts/19_planner_executor_experiment.py
 
 echo ""
 echo "================================================================"

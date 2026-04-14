@@ -2,7 +2,7 @@
 
 Reproducible experiment harness for certificate-gated authorization against indirect prompt injection / tool-output injection.
 
-**Project status:** [docs/STATUS.md](docs/STATUS.md) · **Concepts/theory:** [docs/CONCEPTS.md](docs/CONCEPTS.md) · **Specific to-do:** [docs/TODO.md](docs/TODO.md)
+**Project status:** [docs/STATUS.md](docs/STATUS.md) · **Proposal vs code:** [docs/PROPOSAL_GAP.md](docs/PROPOSAL_GAP.md) · **To-do:** [docs/TODO.md](docs/TODO.md)
 
 **Everything in this README can be run locally** — no cloud APIs or paid services. You need internet once to download datasets (script 00) and the embedder model (first run of 05 or the pre-download step). Default agent uses a mock LLM (no GPU required).
 
@@ -23,39 +23,30 @@ pip install -r requirements.txt
 python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')"
 ```
 
-**Full pipeline (in order):**
+**Full pipeline (in order)** — same steps as [`scripts/07_run_all.sh`](scripts/07_run_all.sh) (set `PYTHONPATH=src` or run from repo root with that export):
 
 ```bash
-# 1) Data: download → corpus → tasks → inject
-python scripts/00_download_datasets.py --config configs/datasets.yaml
-python scripts/01_build_corpus.py --config configs/datasets.yaml
-python scripts/02_generate_tasks.py --config configs/datasets.yaml
-python scripts/03_inject_corpus.py --config configs/attacks.yaml
+# 1) Data: tasks → corpus → FAISS index (injection is strategy-aware at retrieval time; 03_inject_corpus is optional legacy)
+python scripts/01_prepare_data.py --config configs/datasets.yaml    # add --fallback for synthetic tasks if HF is unavailable
+python scripts/02_build_corpus.py
+python scripts/04_build_index.py --config configs/datasets.yaml --corpus data/corpus/chunks.jsonl
 
 # 2) Run grid (agents + defenses)
+export PYTHONPATH=src
 python scripts/05_run_grid.py --config configs/grid.yaml
 
-# 3) Metrics and figures
+# 3) Metrics and performance figures
 python scripts/06_compute_metrics.py --config configs/grid.yaml
-python scripts/07_plot_frontiers.py --config configs/grid.yaml
 python scripts/07b_plot_performance.py --config configs/grid.yaml
+# Then: 11, 12, 09, 13–19 as in 07_run_all.sh for paper figures, proof, attacks, extended results, L_bad, planner–executor
 ```
 
-**Light run (fewer tasks, easy on laptop):**
+**Light run (smoke test):**
 
 ```bash
-python scripts/01_build_corpus.py --config configs/datasets.yaml --max_docs 100
-python scripts/02_generate_tasks.py --config configs/datasets.yaml --max_tasks 20
-python scripts/03_inject_corpus.py --config configs/attacks.yaml
+export PYTHONPATH=src
 python scripts/05_run_grid.py --config configs/grid.yaml --light
 python scripts/06_compute_metrics.py --config configs/grid.yaml
-```
-
-**Frozen benchmark v1 (reproducible, hashes in logs):**
-
-```bash
-python scripts/05_run_grid.py --config configs/benchmark_v1.yaml          # up to 100 tasks × 3 seeds
-python scripts/06_compute_metrics.py --config configs/benchmark_v1.yaml    # → runs/metrics/baseline.json (R_bad, task_success, exposure_rate)
 ```
 
 **Optional: Docker** (same pipeline in a container; useful if you want a reproducible env or don’t have Python on the host):
@@ -110,16 +101,14 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
-python scripts/00_download_datasets.py --config configs/datasets.yaml
-python scripts/01_build_corpus.py --config configs/datasets.yaml
-python scripts/02_generate_tasks.py --config configs/datasets.yaml
-python scripts/03_inject_corpus.py --config configs/attacks.yaml
+export PYTHONPATH=src
+python scripts/01_prepare_data.py --config configs/datasets.yaml
+python scripts/02_build_corpus.py
+python scripts/04_build_index.py --config configs/datasets.yaml --corpus data/corpus/chunks.jsonl
 
 python scripts/05_run_grid.py --config configs/grid.yaml
 python scripts/06_compute_metrics.py --config configs/grid.yaml
-python scripts/07_plot_frontiers.py --config configs/grid.yaml
-python scripts/08_plot_figures.py --config configs/grid.yaml
-python scripts/10_plot_attack_example.py --config configs/grid.yaml
+python scripts/07b_plot_performance.py --config configs/grid.yaml
 
 ```
 
@@ -134,37 +123,28 @@ python scripts/10_plot_attack_example.py --config configs/grid.yaml
 
 This section explains the **reproducible benchmark**, **structured actions**, **task authorization spec G**, **bad-action detection**, and the **baseline metrics** (R_bad, task success, exposure rate) produced by one run.
 
-### 1. Frozen benchmark v1 config and hashes
+### 1. Config, hashes, and reproducibility
 
-A single, stable benchmark setting is defined in **configs/benchmark_v1.yaml**:
+The primary grid is **`configs/grid.yaml`** (9 defenses × 6 strategies × seeds; see `max_per_cell` there). Optional **`benchmark_id`** in a config fills **benchmark_*** hashes in each log when present.
 
-- **Dataset:** HotpotQA
-- **Retrieval:** `faiss`, `use_injected_corpus: true` (attacks on every run)
-- **Grid:** 1 defense (`none`), 3 seeds, up to 100 tasks (`max_tasks: 100`, `max_per_cell: 100`)
-- **Attack:** `B_tokens: [64]`, `K_sources: [1]`, strategy `non_adaptive`
+When hashes are enabled, run logs can include:
 
-**Do not change these values** for published results; create a new benchmark version instead.
+- **benchmark_dataset_hash** / **benchmark_corpus_hash** — from manifests under `data/`
+- **benchmark_task_hash** — from `data/tasks/*_tasks.jsonl`
 
-When you run the grid with this config, **every run log** includes hashes for reproducibility:
+Keep a **frozen copy** of `configs/*.yaml`, `data/` manifests, and `runs/logs/grid_run.jsonl` for any published table.
 
-- **benchmark_id:** `"v1"`
-- **benchmark_dataset_hash:** from corpus manifest dataset spec
-- **benchmark_corpus_hash:** from `data/corpus/manifest.json` (chunks_hash)
-- **benchmark_task_hash:** from `data/tasks/hotpotqa_tasks.jsonl`
-- **benchmark_attack_hash:** from `data/corpus_injected/injection_manifest.json`
-
-Same config + same data → same hashes → same task set and attack set.
-
-**Run the benchmark (light = 1 task, 1 seed):**
+**Smoke run:**
 
 ```bash
-python scripts/05_run_grid.py --config configs/benchmark_v1.yaml --light
+export PYTHONPATH=src
+python scripts/05_run_grid.py --config configs/grid.yaml --light
 ```
 
-**Full benchmark (100 tasks × 3 seeds):**
+**Full grid (see `grid.yaml` for caps):**
 
 ```bash
-python scripts/05_run_grid.py --config configs/benchmark_v1.yaml
+python scripts/05_run_grid.py --config configs/grid.yaml
 ```
 
 ### 2. Structured action schema and parser
@@ -193,7 +173,7 @@ Each task has an **authorization spec G** (goal refs, allowed actions, constrain
 **Where it’s set:**
 
 - **Task spec:** `src/cert_agent_exp/task_spec/task_spec.py` (`make_task_instance` with `goal_refs`, `allowed_actions`, `constraints`; defaults in `DEFAULT_GOAL_REFS`, `DEFAULT_ALLOWED_ACTIONS`, `DEFAULT_CONSTRAINTS`).
-- **Task generation:** `scripts/02_generate_tasks.py` passes these into every HotpotQA task.
+- **Task generation:** `scripts/01_prepare_data.py` writes `data/tasks/hotpotqa_tasks.jsonl`.
 
 The grid runner attaches the full **task** (including G) to each run log so that metrics and verifiers can use it without loading tasks again.
 
@@ -221,10 +201,10 @@ One baseline run (e.g. no defense, with attacks) should produce:
 
 **How to get them:**
 
-1. Run the grid (benchmark_v1 or any config that writes logs with `task`, `parsed_action`, `injected_sources`):  
-   `python scripts/05_run_grid.py --config configs/benchmark_v1.yaml [--light]`
+1. Run the grid (any config that writes logs with `task`, `parsed_action`, `injected_sources`):  
+   `python scripts/05_run_grid.py --config configs/grid.yaml [--light]`
 2. Compute metrics:  
-   `python scripts/06_compute_metrics.py --config configs/benchmark_v1.yaml`
+   `python scripts/06_compute_metrics.py --config configs/grid.yaml`
 
 **Outputs:**
 
@@ -247,39 +227,27 @@ So: one run of the pipeline produces **R_bad**, **task success**, and **exposure
 **Performance (results):**
 
 ```bash
-make performance-figures
-# or
-python scripts/07_plot_frontiers.py --config configs/grid.yaml
+export PYTHONPATH=src
 python scripts/07b_plot_performance.py --config configs/grid.yaml
 ```
 
 | File                                        | Description                                                                  |
 | ------------------------------------------- | ---------------------------------------------------------------------------- |
-| **runs/figures/performance_by_defense.png** | **Task success rate by defense with 95% bootstrap CI** (main results figure) |
-| **runs/figures/exposure_and_injection.png** | Mean exposed sources vs injected sources per defense (from run logs)         |
-| **runs/figures/success_by_defense.png**     | Success rate by defense (bar, no CI)                                         |
-| **runs/figures/frontier.png**               | Success rate by defense (line)                                               |
+| **runs/figures/performance_by_defense.png** | Attack success rate (R_bad_outcome) by defense with 95% bootstrap CI (`07b`) |
+| **runs/figures/exposure_and_injection.png** | Mean exposed vs injected sources per defense                                 |
+| **runs/figures/security_by_defense.png**  | R_bad vs R_bad_outcome by defense                                            |
 
-**Diagrams (pipeline / attack flow):**
-
-```bash
-make figures   # performance + diagrams
-# or
-python scripts/08_plot_figures.py --config configs/grid.yaml
-```
-
-| File                                  | Description                                                     |
-| ------------------------------------- | --------------------------------------------------------------- |
-| **runs/figures/pipeline.png**         | Pipeline: Download → Corpus → Tasks → Inject → Run → Metrics    |
-| **runs/figures/attack_flow.png**      | Attack channel: payload → inject → retrieval → agent → verifier |
-| **runs/figures/exposure_concept.png** | Exposed vs injected (concept)                                   |
-
-**What the attack looks like (before/after injection):**
+**Paper / system diagrams:**
 
 ```bash
-make attack-visual
-# or
-python scripts/10_plot_attack_example.py --config configs/grid.yaml
+export PYTHONPATH=src
+python scripts/11_generate_paper_figures.py   # security_utility_tradeoff, tau_sensitivity, defense_comparison, system_overview
+python scripts/12_attack_trace_figure.py      # attack_trace.png
 ```
 
-Produces **runs/figures/attack_inside_pipeline.png** (side-by-side original vs injected chunk) and **attack_example_1.png**, **attack_example_snippets.txt** so you can see exactly what the model receives when retrieval uses the injected corpus.
+| File                                  | Description                                      |
+| ------------------------------------- | ------------------------------------------------ |
+| **runs/figures/system_overview.png**  | High-level architecture                        |
+| **runs/figures/attack_trace.png**       | Annotated attack → retrieval → defense trace     |
+
+Further figures (`15_attack_figures.py`, `16_extended_results.py`, `colab_run.ipynb`) generate attack optimization, heatmaps, and ablations under `runs/figures/`.

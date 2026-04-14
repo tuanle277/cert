@@ -28,6 +28,7 @@ from cert_agent_exp.defense.taskshield import taskshield_check
 from cert_agent_exp.defense.judge import judge_check
 from cert_agent_exp.defense.intentguard import intentguard_check
 from cert_agent_exp.verifier import verify as cert_verify
+from cert_agent_exp.verifier.certificate import validate_certificate
 from cert_agent_exp.verifier.verifier import verify_with_debug
 from cert_agent_exp.verifier.taint import build_payload_ngrams, ngram_overlap_ratio, taint_detail
 from cert_agent_exp.eval.metrics import grade_task_success, is_bad_action
@@ -303,16 +304,19 @@ def main() -> None:
                 search_tool.attack_strategy = attack_strategy
 
                 for task in tqdm(tasks, desc=f"{ds_name}_{defense}_{attack_strategy}_s{seed}"):
+                    mode = model_cfg.get("mode", "mock")
+                    emit_cert_json = defense == "certificate_gating" and mode != "mock"
                     result = run_episode(
                         task, tools,
                         agent_type=agent_cfg.get("type", "react"),
                         max_steps=agent_cfg.get("max_steps", 12),
-                        model_mode=model_cfg.get("mode", "mock"),
+                        model_mode=mode,
                         model_config={
                             "model_name": model_cfg.get("model_name"),
                             "temperature": model_cfg.get("temperature", 0.2),
                             "seed": model_cfg.get("seed"),
                             "api_base": model_cfg.get("api_base"),
+                            "emit_certificate_json": emit_cert_json,
                         },
                     )
 
@@ -405,15 +409,42 @@ def main() -> None:
                         result["action_executed"] = {"type": "blocked"}
                         result.setdefault("rejection_reason", al_reason)
 
-                    # Certificate gating with full debug (n-gram + embedding)
-                    # Uses PER-STRATEGY payload n-grams — this is critical for
-                    # correctly modeling whether each strategy evades taint.
+                    # Certificate gating: taint on answer body, optional taint on φ.constraints,
+                    # then structured validate_certificate(goal, evidence ⊆ trusted, constraints).
+                    cert_obj = parsed_action.get("certificate") if isinstance(parsed_action, dict) else None
+                    trusted_evidence: set[str] | None = None
+                    if use_cert:
+                        trusted_evidence = set(exposed) - set(injected)
+
                     cert_allowed, cert_reason, cert_debug = verify_with_debug(
                         content, certificates=[],
                         payload_ngrams=cur_payload_ngrams,
                         config=vcfg, chunk_texts=chunk_texts,
                         raw_payload_text=cur_raw_payload,
                     )
+                    if use_cert and isinstance(cert_obj, dict) and cert_obj.get("constraints"):
+                        ctext = " ".join(str(c) for c in cert_obj["constraints"] if c)
+                        if ctext.strip():
+                            c_ok, c_reason, c_dbg = verify_with_debug(
+                                ctext, certificates=[],
+                                payload_ngrams=cur_payload_ngrams,
+                                config=vcfg, chunk_texts=chunk_texts,
+                                raw_payload_text=cur_raw_payload,
+                            )
+                            cert_debug["constraint_taint"] = c_dbg.get("taint", {})
+                            if not c_ok:
+                                cert_allowed = False
+                                cert_reason = f"constraint_{c_reason}"
+
+                    if use_cert and isinstance(cert_obj, dict) and cert_obj:
+                        struct_ok, struct_reason, struct_dbg = validate_certificate(
+                            cert_obj, task, trusted_sources=trusted_evidence,
+                        )
+                        cert_debug["certificate_validation"] = struct_dbg
+                        if not struct_ok:
+                            cert_allowed = False
+                            cert_reason = struct_reason
+
                     result["verifier_decision"] = cert_allowed if use_cert else None
                     result["verifier_reason"] = cert_reason if use_cert else None
                     result["verifier_debug"] = cert_debug if use_cert else None

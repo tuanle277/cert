@@ -36,7 +36,7 @@ Concrete tasks in rough order. Check off as done.
   `action_schema.py` parses `certificate` field from model output JSON: `{goal, evidence, constraints}`.
 
 - [x] **Prompt template for action + certificate**  
-  Retrieval-echo agent returns action + certificate when defense is `certificate_gating`.
+  With `certificate_gating` and a **non-mock** model, the retrieval-echo agent appends JSON instructions so the model can emit `certificate` (φ); mock runs use taint-only checks.
 
 - [x] **Verifier: full G checks and reason codes**  
   `verifier/certificate.py` — `validate_certificate(cert, task, trusted_sources)` checks: goal ∈ Γ(G), evidence provenance, constraint integrity. Reason codes: `ok`, `goal_mismatch`, `untrusted_evidence`, `foreign_constraints`, `missing_certificate`.

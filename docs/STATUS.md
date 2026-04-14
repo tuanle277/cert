@@ -17,8 +17,8 @@ This maps the current repo to the complete, defensible project plan (threat mode
 | Item | Status |
 |------|--------|
 | **A. Benchmark** | |
-| Reproducible corpus/tasks/injections | ✅ Pipeline: 00→01→02→03 |
-| Fixed train/eval slice | ✅ Config-driven with frozen benchmark_v1; dataset/corpus/task/attack hashes in run logs |
+| Reproducible corpus/tasks/injections | ✅ Pipeline: `01_prepare_data` → `02_build_corpus` → `04_build_index`; optional `03_inject_corpus` (legacy on-disk inject) |
+| Fixed train/eval slice | ✅ Config-driven; dataset/corpus hashes in manifests and optional `benchmark_*` fields in logs |
 | Deterministic manifests and hashes | ✅ `corpus/manifest.json`, `integrity.sha256`, `indexes/manifest.json`, `injection_manifest.json` |
 | **B. Threat model** | |
 | Trusted vs untrusted channels | ✅ `trusted_inputs` / `untrusted_inputs` via `exposed_sources`, `injected_sources`, `G_hash` in every run |
@@ -43,7 +43,7 @@ This maps the current repo to the complete, defensible project plan (threat mode
 
 | Phase | Status |
 |-------|--------|
-| 1. Lock the benchmark | ✅ Manifests, hashes, frozen benchmark_v1 config |
+| 1. Lock the benchmark | ✅ Manifests, hashes; use a pinned `configs/grid.yaml` + data snapshot for publication |
 | 2. Unauthorized actions machine-checkable | ✅ `is_bad_action`, uptake detection |
 | 3. Structured-action agent | ✅ JSON action schema with parser, certificate field support |
 | 4. Baseline ladder | ✅ 9 defenses implemented and producing differentiated results |
@@ -58,10 +58,9 @@ This maps the current repo to the complete, defensible project plan (threat mode
 
 | Script / module | Status |
 |-----------------|--------|
-| **00_download_datasets** | ✅ |
-| **01_build_corpus** | ✅ |
-| **02_generate_tasks** | ✅ |
-| **03_inject_corpus** | ✅ With attack_family tags |
+| **01_prepare_data** | ✅ HotpotQA tasks JSONL (HF or `--fallback` synthetic) |
+| **02_build_corpus** | ✅ Chunks from task contexts |
+| **03_inject_corpus** | ✅ Optional legacy injected corpus; grid uses retrieval-time injection |
 | **04_build_index** | ✅ FAISS FlatIP |
 | **05_run_grid** | ✅ Full defense instantiation, verifier blocking, counterfactuals, exposure diagnostics |
 | **06_compute_metrics** | ✅ R_bad, R_forge, Delta_auth, success_rate, bootstrap CIs, by-defense and by-strategy |
@@ -84,9 +83,9 @@ This maps the current repo to the complete, defensible project plan (threat mode
 | **models/** | ✅ `backend.py` (mock, API, Ollama) |
 | **agent/planner_executor** | ✅ Two-phase agent with plan + execute steps (secondary experiment) |
 | **17_formal_attack_optimization** | ✅ Implements max_δ E[1{a∈B}] - λ·ℓ_task with plausibility constraint |
-| **18_lbad_correlation** | ✅ L_bad proxy (taint score) correlation with ASR; Pearson r=0.948 |
+| **18_lbad_correlation** | ✅ L_bad proxy (taint) vs ASR and per-defense **R_forge**; see `runs/lbad_correlation.json` |
 | **19_planner_executor_experiment** | ✅ Planner-executor vs ReAct comparison across defenses |
-| **tests/** | ✅ 10 tests passing (metrics, verifier, injection budget, retrieval) |
+| **tests/** | ⚠️ Add/restore `pytest` tests under `src/tests/` if missing in checkout |
 
 ---
 
@@ -98,7 +97,7 @@ This maps the current repo to the complete, defensible project plan (threat mode
 | Planner-executor logs | `runs/logs/grid_planner_executor.jsonl` (225 episodes, secondary experiment) |
 | Metrics | `runs/metrics/by_defense.jsonl`, `runs/metrics/by_defense_strategy.jsonl` |
 | Formal attack optimization | `runs/formal_attack_optimization.json` (discrete search over payload × strategy × budget) |
-| L_bad correlation | `runs/lbad_correlation.json` (Pearson r = 0.948) |
+| L_bad correlation | `runs/lbad_correlation.json` (correlations depend on run; includes per-defense R_forge) |
 | PE comparison | `runs/metrics/planner_executor_comparison.json` |
 | Figures | `runs/figures/` (25+ PNG files: tradeoff, comparison, architecture, attacks, L_bad, planner-executor, etc.) |
 | Proof package | `runs/proof/` (audit cards, paired diffs, ablation, taint attribution, counterfactuals) |
@@ -114,7 +113,7 @@ This maps the current repo to the complete, defensible project plan (threat mode
 | max_δ E[1{a∈B}] - λ·ℓ_task objective | ✅ `attacks/optimizer.py` + `scripts/17_formal_attack_optimization.py` |
 | Plausibility constraint plausibility(δ) ≥ τ | ✅ `plausibility_score()` with red-flag + overlap heuristic |
 | (B,K) budget sweep | ✅ Grid sweeps B∈{50,150,300}, K∈{1,2} across 6 strategies |
-| L_bad / ΔL_bad correlation | ✅ `scripts/18_lbad_correlation.py`, r = 0.948 |
+| L_bad / ΔL_bad correlation | ✅ `scripts/18_lbad_correlation.py` (values in `runs/lbad_correlation.json`) |
 | Adaptive strategies (goal/evidence/policy laundering) | ✅ All 6 strategies in grid |
 | Planner-executor architecture | ✅ `agent/planner_executor.py` + secondary experiment |
 | Certificate-gated authorization | ✅ Verifier with taint + certificate validation |
