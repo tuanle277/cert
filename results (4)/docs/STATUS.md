@@ -1,6 +1,8 @@
 # What Is Already Done vs. Full Execution Plan
 
-This maps the current repo to the complete, defensible project plan (threat model → benchmark → defenses → certificate gating → metrics → figures → writeup).
+**This file is a snapshot** bundled with the **`results (4)`** Colab export. **Canonical narrative and tables** for this run: [`../REPORT.md`](../REPORT.md) (kept in sync with `results (4)/runs/metrics/`). For the live repo checklist, see the root [`docs/STATUS.md`](../../docs/STATUS.md).
+
+This maps the project plan (threat model → benchmark → defenses → certificate gating → metrics → figures → writeup) to the codebase.
 
 ---
 
