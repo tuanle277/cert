@@ -9,6 +9,8 @@ from .metrics import (
     r_forge,
     delta_auth,
     exposure_rate,
+    false_rejection_rate,
+    clean_episode_count,
 )
 from .bootstrap import bootstrap
 from .plots import (
@@ -31,6 +33,8 @@ __all__ = [
     "r_forge",
     "delta_auth",
     "exposure_rate",
+    "false_rejection_rate",
+    "clean_episode_count",
     "bootstrap",
     "plot_frontiers",
     "plot_success_by_defense",

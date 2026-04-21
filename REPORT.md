@@ -578,6 +578,40 @@ IntentGuard: BLOCKED (reason: injected_origin)
 
 ---
 
-## Appendix B. Planner–executor comparison (not run in this export)
+## Appendix B. Planner–executor comparison
 
-`runs/metrics/planner_executor_comparison.json` lists **`planner_executor.n_episodes`: 0**. The secondary Planner–Executor grid was **not** executed for this export; stored “PE” metrics **duplicate** the ReAct baseline (**ΔASR = 0** by construction). **Do not** cite this file as an empirical planner–executor comparison.
+The secondary Planner–Executor grid produced **225 episodes** across 5 defenses (`runs/logs/grid_planner_executor.jsonl`). Comparison with the **810-episode** ReAct primary run is in `runs/metrics/planner_executor_comparison.json`.
+
+| Defense | ReAct ASR | P-E ASR | ΔASR |
+|---------|:---------:|:-------:|:----:|
+| `none` | 1.000 | 1.000 | 0.000 |
+| `allowlist` | 1.000 | 1.000 | 0.000 |
+| `certificate_gating` | 0.000 | 0.333 | +0.333 |
+| `taskshield` | 0.111 | 0.000 | −0.111 |
+| `intentguard` | 0.000 | 0.000 | 0.000 |
+
+**Observation:** The planner-executor architecture shows **higher ASR under certificate gating** (+33.3 pp) compared to ReAct, suggesting the two-phase structure may produce outputs that evade n-gram taint detection more readily. TaskShield performs slightly better with the PE agent. These results are from a smaller grid (225 vs 810 episodes) and should be interpreted with caution.
+
+---
+
+## Appendix C. Methodology updates
+
+### Evidence span matching
+
+`validate_certificate()` now includes evidence span verification: when a certificate cites evidence IDs, the verifier checks that at least 10% word overlap exists between the cited chunk text and the action content. This prevents spurious citation attacks where the agent claims evidence from a trusted chunk without actually using it.
+
+### False rejection rate (FRR)
+
+`false_rejection_rate()` computes the fraction of clean (non-attacked) episodes blocked by the defense. In the primary grid (100% exposure), all episodes are attacked, so FRR = 0% trivially. The metric becomes meaningful when a clean held-out split is included.
+
+### Bootstrap confidence intervals
+
+`06_compute_metrics.py` now computes per-defense 95% bootstrap CIs (1000 resamples) for ASR and task success, stored in `by_defense.jsonl` as `R_bad_outcome_CI95` and `success_rate_CI95`.
+
+### Explicit limitations
+
+See `docs/STATUS.md` §6 and `docs/PROPOSAL_GAP.md` for a full mapping of proposal items to implementation status, including:
+- Scope limited to retrieval IPI (no tool-output poisoning)
+- L_bad uses taint proxy, not logit-based estimator
+- Discrete attack template search, not continuous optimization
+- Constrained policy is hard-block, not renormalized mixture

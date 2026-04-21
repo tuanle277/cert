@@ -87,7 +87,11 @@ def _generate_hf(
     temperature: float = 0.2,
     system: str | None = None,
 ) -> str:
-    """Generate using HuggingFace transformers on GPU (or CPU fallback)."""
+    """Generate using HuggingFace transformers on GPU (or CPU fallback).
+
+    Supports 4-bit quantization via bitsandbytes when the env var
+    HF_LOAD_IN_4BIT=1 is set (useful for >=14B models on 24GB GPUs).
+    """
     try:
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -98,18 +102,36 @@ def _generate_hf(
         print(f"[hf] Loading {model_name} ...")
         tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
         device = "cuda" if torch.cuda.is_available() else "cpu"
-        dtype = torch.float16 if device == "cuda" else torch.float32
-        model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            torch_dtype=dtype,
-            device_map="auto" if device == "cuda" else None,
-            trust_remote_code=True,
-        )
+        use_4bit = os.environ.get("HF_LOAD_IN_4BIT", "0") == "1"
+
+        load_kwargs: dict[str, Any] = {"trust_remote_code": True}
+        if use_4bit and device == "cuda":
+            try:
+                from transformers import BitsAndBytesConfig
+                load_kwargs["quantization_config"] = BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_compute_dtype=torch.float16,
+                    bnb_4bit_quant_type="nf4",
+                )
+                load_kwargs["device_map"] = "auto"
+                print(f"[hf] Using 4-bit quantization (nf4)")
+            except ImportError:
+                print("[hf] bitsandbytes not installed, falling back to FP16")
+                load_kwargs["torch_dtype"] = torch.float16
+                load_kwargs["device_map"] = "auto"
+        elif device == "cuda":
+            load_kwargs["torch_dtype"] = torch.float16
+            load_kwargs["device_map"] = "auto"
+        else:
+            load_kwargs["torch_dtype"] = torch.float32
+
+        model = AutoModelForCausalLM.from_pretrained(model_name, **load_kwargs)
         if device == "cpu":
             model = model.to(device)
         model.eval()
         _HF_MODEL_CACHE[model_name] = (model, tokenizer, device)
-        print(f"[hf] Loaded on {device}")
+        mem_used = torch.cuda.memory_allocated() / 1e9 if device == "cuda" else 0
+        print(f"[hf] Loaded on {device}" + (f" ({mem_used:.1f} GB VRAM)" if mem_used else ""))
 
     model, tokenizer, device = _HF_MODEL_CACHE[model_name]
     messages = []

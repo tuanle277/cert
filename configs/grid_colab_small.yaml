@@ -1,0 +1,43 @@
+# Default “S” slice for `smaller_colab_run.ipynb` (overwritten when you run §4 in the notebook).
+# Full proposal ladder minus judge-style defenses (saves extra HF forwards per episode).
+data_dir: data
+runs_dir: runs
+retrieval_mode: faiss
+use_injected_corpus: false
+agent:
+  type: retrieval_echo
+  max_steps: 12
+models:
+  mode: hf
+  model_name: Qwen/Qwen2.5-3B-Instruct
+  temperature: 0.2
+  seed: 0
+grid:
+  datasets:
+  - hotpotqa
+  defenses:
+  - none
+  - quote_only
+  - provenance_tags
+  - allowlist
+  - quote+prov+allowlist
+  - certificate_gating
+  channels:
+  - retrieval
+  strategies:
+  - non_adaptive
+  - goal_laundering
+  - evidence_laundering
+  - policy_mimicry
+  - subtle_redirect
+  - footnote_injection
+  B_tokens:
+  - 50
+  - 150
+  K_sources:
+  - 1
+  - 2
+  K_inject: 2
+  seeds:
+  - 0
+  max_per_cell: 12

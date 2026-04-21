@@ -1,0 +1,203 @@
+\documentclass[9pt]{article}
+
+\usepackage[margin=0.6in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{titlesec}
+\usepackage{xcolor}
+
+% compact layout
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{1.5pt}
+\renewcommand{\baselinestretch}{0.90}
+
+\usepackage{enumitem}
+\setlist{nosep,leftmargin=1.1em}
+
+\usepackage{titlesec}
+\titlespacing*{\section}{0pt}{3pt}{1.5pt}
+
+\title{Project Plan: Certificate-Gated Defenses for Adversarial Control-Flow Injection in LLM Agents}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+\vspace{-2.0em}
+
+\section*{Abstract}
+
+Prompt and tool injection in large language model (LLM) agents enable adversarial content embedded in retrieved documents or tool outputs to induce unauthorized actions.
+We formalize injection as an adversarial control-flow optimization problem in which an attacker perturbs untrusted input channels to maximize unsafe tool calls while preserving task plausibility.
+We propose a certificate-gated authorization protocol that constrains actions via externally grounded certificates, reframing injection as constrained certificate forgery.
+We analyze how this protocol strictly dominates tool allowlists, characterize adaptive attackers, and outline an experimental plan to evaluate robustness under adversarial budgets.
+
+\section{Threat Model and Attack Formulation}
+
+At step $t$, the agent observes $o_t=(s_t,r_t,u_t)$ consisting of internal state, retrieved content, and tool output.
+The attacker perturbs untrusted channels; our evaluation focuses on retrieval injection:
+\[
+r_t' = r_t + \delta_t^{(r)}, \quad \delta\in\mathcal{C}.
+\]
+The formalism extends symmetrically to tool-output perturbations $u_t' = u_t + \delta_t^{(u)}$; experimental evaluation of this channel is left to future work.
+
+Let $\pi_\theta(a_t\mid o_t')$ be the induced policy.
+Let $\mathcal{B}$ denote unauthorized tool actions (e.g., exfiltration or policy-violating writes).
+
+Attack success is defined as:
+\[
+\max_{\delta\in\mathcal{C}}
+\mathbb{E}\Big[\sum_{t=1}^T \mathbf{1}\{a_t\in\mathcal{B}\}
+-\lambda\ell_{\mathrm{task}}(a_{1:T})\Big].
+\]
+
+We restrict the attacker by a token budget $|\delta|\le B$ and at most $K$ injected sources per episode, and sweep $(B,K)$ in evaluation.
+
+For analysis and estimation we define:
+\[
+\mathcal{L}_{\mathrm{bad}}(o)=\sum_{\tau\in\mathcal{T}_{\mathrm{bad}}}p_\theta(\tau\mid o),
+\]
+and empirically test correlation between $\Delta\mathcal{L}_{\mathrm{bad}}$ and realized attack rates.
+Since computing the logit sum $p_\theta(\tau\mid o)$ requires model internals unavailable in all inference backends, we approximate $\mathcal{L}_{\mathrm{bad}}$ with a taint-score proxy based on n-gram overlap between action content and known payloads.
+
+The verifier and external task specification are part of the trusted computing base and are not attacker-controlled.
+
+\section{Certificate-Gated Authorization}
+
+For experimental clarity, we assume a structured external task specification $\mathcal{G}$ (objective, inputs, permitted operations) derived deterministically from the user request.
+
+For each privileged action the model emits $(a,\phi)$ with certificate:
+\[
+\phi=(g,E,C),
+\]
+where $g$ is a goal reference, $E$ cited evidence with provenance labels, and $C$ invoked constraints.
+
+A deterministic verifier $V(a,\phi;\mathcal{G})$ accepts iff:
+
+\begin{enumerate}[leftmargin=1.2em]
+\item $\tau(a)$ satisfies capability constraints (schemas and tool permissions),
+\item $g\in\Gamma(\mathcal{G})$ (externally grounded goals),
+\item $C$ contains no tokens tainted by untrusted provenance,
+\item untrusted content appears only inside quoted $E$.
+\end{enumerate}
+
+Taint is detected via n-gram overlap between $C$ and untrusted sources, augmented by cosine similarity of sentence embeddings; we note this provides only approximate paraphrase robustness.
+
+This induces a constrained policy:
+\[
+\tilde{\pi}_\theta(a\mid o)\propto\sum_\phi \pi_\theta(a,\phi\mid o)\mathbf{1}\{V=1\}.
+\]
+
+\section{Strict Dominance Over Tool Allowlists}
+
+Let $\pi^{\text{allow}}$ be an allowlist baseline enforcing only $\tau(a)\in\mathcal{T}_{\text{allow}}$.
+
+Certificate gating enforces:
+\[
+\mathcal{F}_{\text{cert}}=\{(a,\phi):\tau(a)\in\mathcal{T}_{\text{allow}}\land V(a,\phi;\mathcal{G})=1\}.
+\]
+
+Therefore:
+\[
+\Pr_{\tilde{\pi}_\theta}[a\in\mathcal{B}\cap\mathcal{T}_{\text{allow}}]
+\le
+\Pr_{\pi^{\text{allow}}}[a\in\mathcal{B}\cap\mathcal{T}_{\text{allow}}],
+\]
+since certificate gating rejects a subset of actions permitted by allowlists but lacking valid authorization.
+
+We quantify this gap via:
+\[
+\widehat{\Delta}_{\text{auth}}=\mathbb{E}[\mathbf{1}\{\tau(a)\in\mathcal{T}_{\text{allow}}\land V=0\}],
+\]
+measuring how often certificate gating blocks attacks that allowlists alone would permit.
+
+\section{Adaptive Attacker as Certificate Forgery}
+
+Under the defense, attackers must induce:
+\[
+\max_{\delta\in\mathcal{C}}
+\mathbb{E}\Big[\sum_t \mathbf{1}\{a_t\in\mathcal{B}\land V(a_t,\phi_t;\mathcal{G})=1\}\Big].
+\]
+
+We evaluate three adaptive strategies:
+
+\begin{enumerate}[leftmargin=1.2em]
+\item \textbf{Goal laundering:} attempting to redefine objectives to satisfy $g\in\Gamma(\mathcal{G})$.
+\item \textbf{Evidence laundering:} embedding instructions inside cited documents.
+\item \textbf{Policy mimicry:} imitating constraint language to bypass $C$ checks.
+\end{enumerate}
+
+\section{Estimators and Mechanism-Level Metrics}
+
+From execution traces we compute:
+\[
+\widehat{R}_{\mathrm{bad}}=\Pr[a\in\mathcal{B}],\quad
+\widehat{R}_{\mathrm{forge}}=\Pr[a\in\mathcal{B}\land V=1],
+\]
+with bootstrap confidence intervals over episodes.
+
+We correlate $\widehat{R}_{\mathrm{forge}}$ with $\Delta\mathcal{L}_{\mathrm{bad}}$ to test whether certificate gating flattens the attacker's optimization landscape.
+
+We additionally log verifier rejection modes and action divergence from clean trajectories to diagnose failure mechanisms.
+
+\section{Experimental System and Evaluation}
+
+Primary evaluation focuses on single-agent systems under indirect prompt injection via retrieval.
+Secondary experiments extend to planner-executor agents.
+
+Baselines include input quoting, provenance labeling, static allowlists, and their combinations.
+
+Primary metrics:
+$\widehat{R}_{\mathrm{bad}}$, $\widehat{R}_{\mathrm{forge}}$, task success, and $\widehat{\Delta}_{\text{auth}}$.
+We report security-utility frontiers by varying a taint-threshold parameter in the verifier.
+
+\section{Project Plan}
+
+\textbf{Weeks 1-2: Foundations.}
+Build agent harness with full trace logging.
+Implement indirect injection and tool injection attacks.
+Establish clean baselines.
+
+\textbf{Weeks 3-4: Adversarial Suite.}
+Construct injected document and tool-output corpus.
+Implement adaptive attack strategies under budgets $(B,K)$.
+Validate attack effectiveness without defenses.
+
+\textbf{Weeks 5-6: Certificate-Gated Defense.}
+Implement certificate schema, taint tracking, and deterministic verifier.
+Integrate constrained policy $\tilde{\pi}_\theta$.
+
+\textbf{Weeks 7-8: Comparative Evaluation.}
+Benchmark certificate gating against baselines.
+Measure $\widehat{R}_{\mathrm{bad}}$, $\widehat{R}_{\mathrm{forge}}$, and utility.
+
+\textbf{Weeks 9-10: Mechanism Analysis.}
+Analyze verifier rejection modes and attribution to injected tokens.
+Run ablations on verifier components.
+
+
+\textbf{Weeks 11-12: Write-up and Release.}
+Finalize report, package code and execution traces, and prepare demo.
+
+\section{Expected Outcomes and Limitations}
+
+The project will deliver:
+
+\begin{itemize}[leftmargin=1.2em]
+\item a formal adversarial formulation of control-flow injection,
+\item a certificate-gated authorization protocol for LLM agents,
+\item empirical robustness results against adaptive attackers,
+\item security-utility tradeoff curves,
+\item code and execution traces for reproducibility.
+\end{itemize}
+
+We note that models may learn to satisfy verifier constraints over time; robustness under joint training is left to future work.
+
+\section{Broader Impact}
+
+As LLM agents enter scientific, financial, and healthcare workflows, preventing untrusted content from directly triggering actions is critical.
+Certificate-gated authorization provides a practical, model-agnostic defense that can be deployed without retraining, offering a concrete step toward safer agentic systems.
+
+\end{document}

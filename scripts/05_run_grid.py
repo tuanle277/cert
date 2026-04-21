@@ -439,6 +439,7 @@ def main() -> None:
                     if use_cert and isinstance(cert_obj, dict) and cert_obj:
                         struct_ok, struct_reason, struct_dbg = validate_certificate(
                             cert_obj, task, trusted_sources=trusted_evidence,
+                            chunk_texts=chunk_texts, action_content=content,
                         )
                         cert_debug["certificate_validation"] = struct_dbg
                         if not struct_ok:

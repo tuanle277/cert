@@ -3,9 +3,20 @@
 From the proposal:
     L_bad(o) = Σ_{τ ∈ T_bad} p_θ(τ | o)
 
-We approximate this with the taint score (n-gram overlap with payload)
-as a proxy for L_bad, and test whether ΔL_bad (change in taint score
-between clean and attacked episodes) correlates with realized attack rates.
+IMPORTANT — proxy vs. proposal definition:
+    The proposal defines L_bad as a sum over token-level log-probabilities
+    p_θ(τ | o) for bad-action tokens τ ∈ T_bad.  This requires access to
+    model logits, which are unavailable for many API/HF inference backends.
+
+    This script uses the **taint score** (n-gram overlap between action
+    content and known payloads) as a **lightweight proxy** for L_bad.
+    The proxy captures surface-level payload leakage but does NOT measure
+    the model's internal probability of generating bad tokens.
+
+    Interpret correlation values cautiously: a weak r(ΔL_bad_proxy, ASR)
+    does not refute the proposal's theoretical L_bad — it reflects the
+    proxy's limited fidelity.  A logit-based estimator would be needed
+    for a proper test of the proposal's Theorem 1.
 
 Outputs:
   - runs/lbad_correlation.json

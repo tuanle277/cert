@@ -1,0 +1,35 @@
+# Colab / HuggingFace grid configuration
+# models.mode: hf — uses HuggingFace transformers pipeline (requires GPU)
+# Tested on Colab Pro A100 (40GB) with Qwen2.5-14B-Instruct
+data_dir: "data"
+runs_dir: "runs"
+
+retrieval_mode: "faiss"
+use_injected_corpus: true
+
+agent:
+  type: "retrieval_echo"
+  max_steps: 12
+
+models:
+  mode: "hf"
+  model_name: "Qwen/Qwen2.5-14B-Instruct"
+  temperature: 0.2
+  seed: 0
+
+grid:
+  datasets: ["hotpotqa"]
+  defenses: ["none", "quote_only", "provenance_tags", "allowlist", "quote+prov+allowlist", "certificate_gating", "taskshield", "llm_judge", "intentguard"]
+  channels: ["retrieval"]
+  strategies:
+    - non_adaptive
+    - goal_laundering
+    - evidence_laundering
+    - policy_mimicry
+    - subtle_redirect
+    - footnote_injection
+  B_tokens: [50, 150, 300]
+  K_sources: [1, 2]
+  seeds: [0, 1, 2]
+  N_SEEDS: 3
+  max_per_cell: 20
